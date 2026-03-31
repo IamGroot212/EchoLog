@@ -37,6 +37,10 @@ final class RecordingController {
         hotkeyManager = manager
     }
 
+    func reRegisterHotkey() {
+        hotkeyManager?.reRegister()
+    }
+
     // MARK: - Public API
 
     func toggleRecording() async {

@@ -71,5 +71,66 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "hotkeyModifiers") }
     }
 
+    // MARK: - Onboarding
+
+    var hasCompletedOnboarding: Bool {
+        get { defaults.bool(forKey: "hasCompletedOnboarding") }
+        set { defaults.set(newValue, forKey: "hasCompletedOnboarding") }
+    }
+
+    // MARK: - Launch at Login
+
+    var launchAtLogin: Bool {
+        get { defaults.bool(forKey: "launchAtLogin") }
+        set { defaults.set(newValue, forKey: "launchAtLogin") }
+    }
+
+    // MARK: - Export Settings
+
+    var autoExport: Bool {
+        get { defaults.object(forKey: "autoExport") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "autoExport") }
+    }
+
+    var exportNotionEnabled: Bool {
+        get { defaults.bool(forKey: "exportNotionEnabled") }
+        set { defaults.set(newValue, forKey: "exportNotionEnabled") }
+    }
+
+    var notionDatabaseId: String {
+        get { defaults.string(forKey: "notionDatabaseId") ?? "" }
+        set { defaults.set(newValue, forKey: "notionDatabaseId") }
+    }
+
+    var exportICloudEnabled: Bool {
+        get { defaults.bool(forKey: "exportICloudEnabled") }
+        set { defaults.set(newValue, forKey: "exportICloudEnabled") }
+    }
+
+    var iCloudSubfolder: String {
+        get { defaults.string(forKey: "iCloudSubfolder") ?? "EchoLog" }
+        set { defaults.set(newValue, forKey: "iCloudSubfolder") }
+    }
+
+    var iCloudSaveTranscript: Bool {
+        get { defaults.bool(forKey: "iCloudSaveTranscript") }
+        set { defaults.set(newValue, forKey: "iCloudSaveTranscript") }
+    }
+
+    var exportOpenClawEnabled: Bool {
+        get { defaults.bool(forKey: "exportOpenClawEnabled") }
+        set { defaults.set(newValue, forKey: "exportOpenClawEnabled") }
+    }
+
+    var openClawGatewayURL: String {
+        get { defaults.string(forKey: "openClawGatewayURL") ?? "http://localhost:3000" }
+        set { defaults.set(newValue, forKey: "openClawGatewayURL") }
+    }
+
+    var openClawAgentId: String {
+        get { defaults.string(forKey: "openClawAgentId") ?? "" }
+        set { defaults.set(newValue, forKey: "openClawAgentId") }
+    }
+
     private init() {}
 }

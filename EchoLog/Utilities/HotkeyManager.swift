@@ -36,6 +36,11 @@ final class HotkeyManager {
         }
     }
 
+    func reRegister() {
+        unregister()
+        register()
+    }
+
     func unregister() {
         if let monitor = globalMonitor {
             NSEvent.removeMonitor(monitor)

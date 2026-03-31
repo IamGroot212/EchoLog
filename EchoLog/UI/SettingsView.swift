@@ -1,20 +1,39 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
-    @State private var settings = AppSettings.shared
+    @Environment(RecordingController.self) private var controller
+
+    private let settings = AppSettings.shared
 
     // Local state for text fields
     @State private var ollamaURL: String = AppSettings.shared.ollamaBaseURL
     @State private var ollamaModel: String = AppSettings.shared.ollamaModel
     @State private var claudeKey: String = ""
+    @State private var openAIKey: String = ""
     @State private var promptTemplate: String = AppSettings.shared.promptTemplate
     @State private var whisperPath: String = AppSettings.shared.whisperBinaryPath
     @State private var modelPath: String = AppSettings.shared.whisperModelPath
     @State private var selectedLanguage: String = AppSettings.shared.defaultLanguage
     @State private var selectedBackend: String = AppSettings.shared.llmBackend
     @State private var autoSummarize: Bool = AppSettings.shared.autoSummarize
+    @State private var launchAtLogin: Bool = AppSettings.shared.launchAtLogin
+
+    // Export state
+    @State private var autoExport: Bool = AppSettings.shared.autoExport
+    @State private var exportNotionEnabled: Bool = AppSettings.shared.exportNotionEnabled
+    @State private var notionToken: String = ""
+    @State private var notionDatabaseId: String = AppSettings.shared.notionDatabaseId
+    @State private var exportICloudEnabled: Bool = AppSettings.shared.exportICloudEnabled
+    @State private var iCloudSubfolder: String = AppSettings.shared.iCloudSubfolder
+    @State private var iCloudSaveTranscript: Bool = AppSettings.shared.iCloudSaveTranscript
+    @State private var exportOpenClawEnabled: Bool = AppSettings.shared.exportOpenClawEnabled
+    @State private var openClawURL: String = AppSettings.shared.openClawGatewayURL
+    @State private var openClawAgentId: String = AppSettings.shared.openClawAgentId
 
     @State private var ollamaStatus: String?
+    @State private var notionTestStatus: String?
+    @State private var openClawTestStatus: String?
 
     private let languages = [
         ("en", "English"), ("de", "German"), ("fr", "French"),
@@ -29,13 +48,17 @@ struct SettingsView: View {
                 .tabItem { Label("Transcription", systemImage: "waveform") }
             summarizationTab
                 .tabItem { Label("Summarization", systemImage: "text.badge.star") }
+            exportTab
+                .tabItem { Label("Export", systemImage: "square.and.arrow.up") }
             aboutTab
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .padding()
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 550, minHeight: 450)
         .onAppear {
             claudeKey = KeychainHelper.claudeAPIKey ?? ""
+            openAIKey = KeychainHelper.openAIAPIKey ?? ""
+            notionToken = KeychainHelper.notionToken ?? ""
         }
     }
 
@@ -43,11 +66,29 @@ struct SettingsView: View {
 
     private var generalTab: some View {
         Form {
+            Section("Startup") {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, val in
+                        settings.launchAtLogin = val
+                        toggleLaunchAtLogin(val)
+                    }
+            }
+
+            Section("Hotkey") {
+                HotkeyRecorderView {
+                    controller.reRegisterHotkey()
+                }
+            }
+
             Section("Capture") {
-                Picker("Default Mode", selection: $settings.captureModeRaw) {
+                Picker("Default Mode", selection: Binding(
+                    get: { settings.captureModeRaw },
+                    set: { settings.captureModeRaw = $0 }
+                )) {
                     Text("System Audio").tag("systemAudio")
                     Text("Microphone").tag("microphone")
                 }
+
                 Toggle("Auto-summarize after recording", isOn: $autoSummarize)
                     .onChange(of: autoSummarize) { _, val in settings.autoSummarize = val }
             }
@@ -64,12 +105,7 @@ struct SettingsView: View {
                     TextField("Binary Path", text: $whisperPath)
                         .textFieldStyle(.roundedBorder)
                     Button("Browse...") {
-                        let panel = NSOpenPanel()
-                        panel.canChooseFiles = true
-                        panel.canChooseDirectories = false
-                        if panel.runModal() == .OK, let url = panel.url {
-                            whisperPath = url.path
-                        }
+                        browseFile { whisperPath = $0 }
                     }
                 }
                 .onChange(of: whisperPath) { _, val in settings.whisperBinaryPath = val }
@@ -78,12 +114,7 @@ struct SettingsView: View {
                     TextField("Model Path", text: $modelPath)
                         .textFieldStyle(.roundedBorder)
                     Button("Browse...") {
-                        let panel = NSOpenPanel()
-                        panel.canChooseFiles = true
-                        panel.canChooseDirectories = false
-                        if panel.runModal() == .OK, let url = panel.url {
-                            modelPath = url.path
-                        }
+                        browseFile { modelPath = $0 }
                     }
                 }
                 .onChange(of: modelPath) { _, val in settings.whisperModelPath = val }
@@ -109,6 +140,7 @@ struct SettingsView: View {
                 Picker("Backend", selection: $selectedBackend) {
                     Text("Ollama (Local)").tag("ollama")
                     Text("Claude API").tag("claude")
+                    Text("OpenAI API").tag("openai")
                 }
                 .onChange(of: selectedBackend) { _, val in settings.llmBackend = val }
 
@@ -142,6 +174,14 @@ struct SettingsView: View {
                             KeychainHelper.claudeAPIKey = val.isEmpty ? nil : val
                         }
                 }
+
+                if selectedBackend == "openai" {
+                    SecureField("OpenAI API Key", text: $openAIKey)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: openAIKey) { _, val in
+                            KeychainHelper.openAIAPIKey = val.isEmpty ? nil : val
+                        }
+                }
             }
 
             Section("Prompt Template") {
@@ -159,19 +199,168 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
+    // MARK: - Export
+
+    private var exportTab: some View {
+        Form {
+            Section("Auto-Export") {
+                Toggle("Automatically export after each session", isOn: $autoExport)
+                    .onChange(of: autoExport) { _, val in settings.autoExport = val }
+            }
+
+            Section("Local Markdown") {
+                LabeledContent("Path", value: "~/EchoLog/")
+                Text("Local Markdown export is always enabled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Notion") {
+                Toggle("Enable Notion export", isOn: $exportNotionEnabled)
+                    .onChange(of: exportNotionEnabled) { _, val in settings.exportNotionEnabled = val }
+
+                if exportNotionEnabled {
+                    SecureField("Integration Token", text: $notionToken)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: notionToken) { _, val in
+                            KeychainHelper.notionToken = val.isEmpty ? nil : val
+                        }
+                    TextField("Database ID", text: $notionDatabaseId)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: notionDatabaseId) { _, val in settings.notionDatabaseId = val }
+
+                    HStack {
+                        Button("Test Connection") {
+                            Task { await testNotionConnection() }
+                        }
+                        if let status = notionTestStatus {
+                            Text(status)
+                                .foregroundStyle(status.contains("OK") ? .green : .red)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+
+            Section("iCloud Drive") {
+                Toggle("Enable iCloud export", isOn: $exportICloudEnabled)
+                    .onChange(of: exportICloudEnabled) { _, val in settings.exportICloudEnabled = val }
+
+                if exportICloudEnabled {
+                    TextField("Subfolder name", text: $iCloudSubfolder)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: iCloudSubfolder) { _, val in settings.iCloudSubfolder = val }
+                    Toggle("Also save raw transcript", isOn: $iCloudSaveTranscript)
+                        .onChange(of: iCloudSaveTranscript) { _, val in settings.iCloudSaveTranscript = val }
+                }
+            }
+
+            Section("OpenClaw") {
+                Toggle("Enable OpenClaw export", isOn: $exportOpenClawEnabled)
+                    .onChange(of: exportOpenClawEnabled) { _, val in settings.exportOpenClawEnabled = val }
+
+                if exportOpenClawEnabled {
+                    TextField("Gateway URL", text: $openClawURL)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: openClawURL) { _, val in settings.openClawGatewayURL = val }
+                    TextField("Agent ID", text: $openClawAgentId)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: openClawAgentId) { _, val in settings.openClawAgentId = val }
+
+                    HStack {
+                        Button("Test Agent") {
+                            Task { await testOpenClawConnection() }
+                        }
+                        if let status = openClawTestStatus {
+                            Text(status)
+                                .foregroundStyle(status.contains("OK") ? .green : .red)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
     // MARK: - About
 
     private var aboutTab: some View {
         Form {
             Section {
-                LabeledContent("Version", value: "0.1.0")
+                LabeledContent("Version") {
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
+                }
                 LabeledContent("Sessions Folder", value: "~/EchoLog/")
-                Button("Open in Finder") {
-                    let url = SessionManager.shared.baseDirectory
-                    NSWorkspace.shared.open(url)
+
+                HStack {
+                    Button("Open in Finder") {
+                        NSWorkspace.shared.open(SessionManager.shared.baseDirectory)
+                    }
+                    Button("GitHub") {
+                        if let url = URL(string: "https://github.com/IamGroot212/EchoLog") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    // MARK: - Helpers
+
+    private func browseFile(completion: @escaping (String) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            completion(url.path)
+        }
+    }
+
+    private func toggleLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // Silently fail — not critical
+        }
+    }
+
+    private func testNotionConnection() async {
+        guard let token = KeychainHelper.notionToken, !token.isEmpty else {
+            notionTestStatus = "No token"
+            return
+        }
+        guard let url = URL(string: "https://api.notion.com/v1/users/me") else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("2022-06-28", forHTTPHeaderField: "Notion-Version")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            notionTestStatus = code == 200 ? "OK — Connected" : "Error: HTTP \(code)"
+        } catch {
+            notionTestStatus = "Error: \(error.localizedDescription)"
+        }
+    }
+
+    private func testOpenClawConnection() async {
+        guard let url = URL(string: openClawURL) else {
+            openClawTestStatus = "Invalid URL"
+            return
+        }
+        do {
+            let (_, response) = try await URLSession.shared.data(from: url)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            openClawTestStatus = (200...299).contains(code) ? "OK — Reachable" : "HTTP \(code)"
+        } catch {
+            openClawTestStatus = "Not reachable"
+        }
     }
 }

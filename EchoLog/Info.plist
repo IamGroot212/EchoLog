@@ -6,6 +6,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>EchoLog needs microphone access to record audio.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>EchoLog needs screen recording access to capture system audio from applications.</string>
     <key>CFBundleName</key>
     <string>EchoLog</string>
     <key>CFBundleDisplayName</key>

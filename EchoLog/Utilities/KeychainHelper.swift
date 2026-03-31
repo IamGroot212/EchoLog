@@ -71,4 +71,17 @@ extension KeychainHelper {
             }
         }
     }
+
+    static let notionTokenService = "com.echoLog.notionToken"
+
+    static var notionToken: String? {
+        get { load(service: notionTokenService) }
+        set {
+            if let value = newValue {
+                _ = save(key: value, service: notionTokenService)
+            } else {
+                delete(service: notionTokenService)
+            }
+        }
+    }
 }

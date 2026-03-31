@@ -1,0 +1,108 @@
+import SwiftUI
+import Carbon.HIToolbox
+
+struct HotkeyRecorderView: View {
+    @State private var isRecording = false
+    @State private var currentKeyCode: UInt16 = AppSettings.shared.hotkeyKeyCode
+    @State private var currentModifiers: NSEvent.ModifierFlags = NSEvent.ModifierFlags(rawValue: AppSettings.shared.hotkeyModifiers)
+    @State private var localMonitor: Any?
+
+    var onHotkeyChanged: (() -> Void)?
+
+    var body: some View {
+        HStack {
+            Text("Global Hotkey")
+            Spacer()
+            Button(action: { toggleRecording() }) {
+                Text(isRecording ? "Press a key..." : displayString)
+                    .frame(minWidth: 120)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+            }
+            .background(isRecording ? Color.accentColor.opacity(0.2) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            if !isRecording {
+                Button("Clear") {
+                    // Reset to default ⌘⇧R
+                    currentKeyCode = 15
+                    currentModifiers = [.command, .shift]
+                    saveHotkey()
+                }
+                .font(.caption)
+            }
+        }
+    }
+
+    private var displayString: String {
+        var parts: [String] = []
+        if currentModifiers.contains(.control) { parts.append("⌃") }
+        if currentModifiers.contains(.option) { parts.append("⌥") }
+        if currentModifiers.contains(.shift) { parts.append("⇧") }
+        if currentModifiers.contains(.command) { parts.append("⌘") }
+        parts.append(keyCodeToString(currentKeyCode))
+        return parts.joined()
+    }
+
+    private func toggleRecording() {
+        if isRecording {
+            stopListening()
+        } else {
+            startListening()
+        }
+    }
+
+    private func startListening() {
+        isRecording = true
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            let relevantMods: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
+            let mods = event.modifierFlags.intersection(relevantMods)
+
+            // Require at least one modifier
+            guard !mods.isEmpty else { return event }
+
+            // Escape cancels
+            if event.keyCode == 53 {
+                stopListening()
+                return nil
+            }
+
+            currentKeyCode = event.keyCode
+            currentModifiers = mods
+            saveHotkey()
+            stopListening()
+            return nil
+        }
+    }
+
+    private func stopListening() {
+        isRecording = false
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
+        }
+    }
+
+    private func saveHotkey() {
+        AppSettings.shared.hotkeyKeyCode = currentKeyCode
+        AppSettings.shared.hotkeyModifiers = currentModifiers.rawValue
+        onHotkeyChanged?()
+    }
+
+    private func keyCodeToString(_ keyCode: UInt16) -> String {
+        let mapping: [UInt16: String] = [
+            0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X",
+            8: "C", 9: "V", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
+            16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+            23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+            30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P", 37: "L",
+            38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/",
+            45: "N", 46: "M", 47: ".", 49: "Space", 50: "`",
+            51: "Delete", 53: "Esc", 96: "F5", 97: "F6", 98: "F7", 99: "F3",
+            100: "F8", 101: "F9", 109: "F10", 111: "F12", 103: "F11",
+            118: "F4", 120: "F2", 122: "F1",
+            123: "Left", 124: "Right", 125: "Down", 126: "Up",
+        ]
+        return mapping[keyCode] ?? "Key\(keyCode)"
+    }
+}
