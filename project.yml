@@ -1,0 +1,23 @@
+name: EchoLog
+options:
+  bundleIdPrefix: com.felixbeckert
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.3"
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  EchoLog:
+    type: application
+    platform: macOS
+    sources:
+      - EchoLog
+    settings:
+      base:
+        INFOPLIST_FILE: EchoLog/Info.plist
+        CODE_SIGN_ENTITLEMENTS: EchoLog/EchoLog.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.felixbeckert.EchoLog
+        ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_IDENTITY: "-"
