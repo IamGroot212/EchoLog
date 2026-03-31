@@ -52,5 +52,24 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "autoSummarize") }
     }
 
+    // MARK: - Hotkey Settings
+
+    /// Key code for the global hotkey (default: 15 = R)
+    var hotkeyKeyCode: UInt16 {
+        get {
+            let val = defaults.object(forKey: "hotkeyKeyCode") as? Int
+            return val.map { UInt16($0) } ?? 15
+        }
+        set { defaults.set(Int(newValue), forKey: "hotkeyKeyCode") }
+    }
+
+    /// Modifier flags for the global hotkey (default: ⌘⇧)
+    var hotkeyModifiers: UInt {
+        get {
+            defaults.object(forKey: "hotkeyModifiers") as? UInt ?? 1_179_648 // .command | .shift
+        }
+        set { defaults.set(newValue, forKey: "hotkeyModifiers") }
+    }
+
     private init() {}
 }
