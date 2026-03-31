@@ -25,5 +25,32 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "captureMode") }
     }
 
+    // MARK: - LLM Settings
+
+    var llmBackend: String {
+        get { defaults.string(forKey: "llmBackend") ?? "ollama" }
+        set { defaults.set(newValue, forKey: "llmBackend") }
+    }
+
+    var ollamaBaseURL: String {
+        get { defaults.string(forKey: "ollamaBaseURL") ?? "http://localhost:11434" }
+        set { defaults.set(newValue, forKey: "ollamaBaseURL") }
+    }
+
+    var ollamaModel: String {
+        get { defaults.string(forKey: "ollamaModel") ?? "qwen2.5:14b" }
+        set { defaults.set(newValue, forKey: "ollamaModel") }
+    }
+
+    var promptTemplate: String {
+        get { defaults.string(forKey: "promptTemplate") ?? LLMSummarizer.defaultPromptTemplate }
+        set { defaults.set(newValue, forKey: "promptTemplate") }
+    }
+
+    var autoSummarize: Bool {
+        get { defaults.object(forKey: "autoSummarize") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "autoSummarize") }
+    }
+
     private init() {}
 }

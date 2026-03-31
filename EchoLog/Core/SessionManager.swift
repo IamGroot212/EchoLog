@@ -60,6 +60,12 @@ final class SessionManager {
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    func saveSummary(_ text: String, for session: Session) throws {
+        let folder = baseDirectory.appendingPathComponent(session.folderName, isDirectory: true)
+        let url = folder.appendingPathComponent("summary.md")
+        try text.write(to: url, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - Loading
 
     func loadSessions() {

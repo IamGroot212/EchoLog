@@ -1,20 +1,22 @@
 import SwiftUI
 
 struct MenuBarView: View {
+    @Environment(\.openWindow) private var openWindow
+
     @State private var engine = AudioCaptureEngine()
     @State private var sessionManager = SessionManager.shared
     @State private var whisperBridge = WhisperBridge()
+    @State private var summarizer = LLMSummarizer()
 
     @State private var currentSession: Session?
     @State private var statusText = "Idle"
     @State private var isRecording = false
-    @State private var isTranscribing = false
+    @State private var isProcessing = false
     @State private var recordingTimer: Timer?
     @State private var elapsedSeconds: Int = 0
 
     @State private var selectedMode: AudioCaptureMode = .systemAudio
     @State private var availableApps: [CapturedApp] = []
-    @State private var showAppPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -36,7 +38,7 @@ struct MenuBarView: View {
             Divider()
 
             // Capture mode picker
-            if !isRecording {
+            if !isRecording && !isProcessing {
                 Menu("Mode: \(modeLabel)") {
                     Button("System Audio") { selectedMode = .systemAudio }
                     Button("Microphone") { selectedMode = .microphone }
@@ -58,14 +60,13 @@ struct MenuBarView: View {
 
             // Start / Stop
             if isRecording {
-                Button("Stop & Transcribe") {
+                Button("Stop & Process") {
                     Task { await stopRecording() }
                 }
-                .disabled(isTranscribing)
-            } else if isTranscribing {
-                Text("Transcribing...")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+            } else if isProcessing {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Button("Start Recording") {
                     Task { await startRecording() }
@@ -75,20 +76,33 @@ struct MenuBarView: View {
             // Recent sessions
             if !sessionManager.sessions.isEmpty {
                 Divider()
-                Text("Recent Sessions").font(.caption).foregroundStyle(.secondary)
+                Text("Recent").font(.caption).foregroundStyle(.secondary)
                 ForEach(sessionManager.sessions.prefix(3)) { session in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(session.folderName)
                             .font(.caption2)
                             .foregroundStyle(.primary)
-                        if let transcript = session.transcriptFileName {
-                            Text(transcript)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                        HStack(spacing: 4) {
+                            if session.transcriptFileName != nil {
+                                Image(systemName: "doc.text.fill").foregroundStyle(.green)
+                            }
+                            if session.summaryFileName != nil {
+                                Image(systemName: "text.badge.star").foregroundStyle(.blue)
+                            }
                         }
+                        .font(.caption2)
                     }
                 }
+            }
+
+            Divider()
+
+            // Window links
+            Button("Session History...") {
+                openWindow(id: "history")
+            }
+            Button("Settings...") {
+                openWindow(id: "settings")
             }
 
             Divider()
@@ -141,7 +155,6 @@ struct MenuBarView: View {
             elapsedSeconds = 0
             statusText = "Recording... 0:00"
 
-            // Start a timer for elapsed display
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
                 elapsedSeconds += 1
                 let mins = elapsedSeconds / 60
@@ -163,29 +176,38 @@ struct MenuBarView: View {
             let audioURL = try await engine.stopCapture()
             session.duration = TimeInterval(elapsedSeconds)
             isRecording = false
+            isProcessing = true
 
-            // Save session metadata
             try sessionManager.save(session)
 
-            // Transcribe
+            // Step 1: Transcribe
             statusText = "Transcribing..."
-            isTranscribing = true
-
             let result = try await whisperBridge.transcribe(audioFileURL: audioURL)
             session.transcriptFileName = "transcript.txt"
-
             try sessionManager.saveTranscript(result.transcript, for: session)
             try sessionManager.save(session)
 
-            statusText = "Done — transcript saved"
-            isTranscribing = false
-            currentSession = nil
+            // Step 2: Summarize (if enabled)
+            if AppSettings.shared.autoSummarize {
+                statusText = "Summarizing..."
+                let summary = try await summarizer.summarize(
+                    transcript: result.transcript,
+                    apps: session.capturedApps,
+                    duration: session.duration,
+                    language: AppSettings.shared.defaultLanguage
+                )
+                session.summaryFileName = "summary.md"
+                try sessionManager.saveSummary(summary, for: session)
+                try sessionManager.save(session)
+            }
 
-            // Reload sessions list
+            statusText = "Done"
+            isProcessing = false
+            currentSession = nil
             sessionManager.loadSessions()
         } catch {
             statusText = "Error: \(error.localizedDescription)"
-            isTranscribing = false
+            isProcessing = false
             isRecording = false
         }
     }
