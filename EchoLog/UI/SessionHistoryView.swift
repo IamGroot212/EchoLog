@@ -4,6 +4,8 @@ struct SessionHistoryView: View {
     @State private var sessionManager = SessionManager.shared
     @State private var searchText = ""
     @State private var selectedSession: Session?
+    @State private var sessionToDelete: Session?
+    @State private var showDeleteConfirmation = false
 
     private var filteredSessions: [Session] {
         if searchText.isEmpty {
@@ -20,6 +22,17 @@ struct SessionHistoryView: View {
             List(filteredSessions, selection: $selectedSession) { session in
                 SessionRow(session: session)
                     .tag(session)
+                    .contextMenu {
+                        Button("Show in Finder") {
+                            let folder = SessionManager.shared.sessionFolder(for: session)
+                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                        }
+                        Divider()
+                        Button("Delete...", role: .destructive) {
+                            sessionToDelete = session
+                            showDeleteConfirmation = true
+                        }
+                    }
             }
             .searchable(text: $searchText, prompt: "Search sessions...")
             .navigationTitle("Sessions")
@@ -28,18 +41,47 @@ struct SessionHistoryView: View {
                     Button(action: { sessionManager.loadSessions() }) {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .help("Refresh")
                 }
+            }
+            .confirmationDialog(
+                "Delete Session?",
+                isPresented: $showDeleteConfirmation,
+                presenting: sessionToDelete
+            ) { session in
+                Button("Delete", role: .destructive) {
+                    deleteSession(session)
+                }
+            } message: { session in
+                Text("Delete \"\(session.folderName)\" and all its files? This cannot be undone.")
             }
         } detail: {
             if let session = selectedSession {
-                SessionDetailView(session: session)
+                SessionDetailView(
+                    session: session,
+                    onDelete: {
+                        selectedSession = nil
+                        sessionManager.loadSessions()
+                    }
+                )
             } else {
-                ContentUnavailableView("Select a Session", systemImage: "waveform", description: Text("Choose a session from the sidebar to view its transcript and summary."))
+                ContentUnavailableView(
+                    "Select a Session",
+                    systemImage: "waveform",
+                    description: Text("Choose a session from the sidebar to view its transcript and summary.")
+                )
             }
         }
         .onAppear {
             sessionManager.loadSessions()
         }
+    }
+
+    private func deleteSession(_ session: Session) {
+        if selectedSession?.id == session.id {
+            selectedSession = nil
+        }
+        try? sessionManager.deleteSession(session)
     }
 }
 
@@ -55,7 +97,11 @@ struct SessionRow: View {
             HStack(spacing: 8) {
                 Label(formattedDuration, systemImage: "clock")
                 if !session.capturedApps.isEmpty {
-                    Label(session.capturedApps.map(\.displayName).joined(separator: ", "), systemImage: "app")
+                    Label(
+                        session.capturedApps.map(\.displayName).joined(separator: ", "),
+                        systemImage: "app"
+                    )
+                    .lineLimit(1)
                 }
             }
             .font(.caption)
@@ -91,23 +137,38 @@ struct SessionRow: View {
 
 struct SessionDetailView: View {
     let session: Session
+    var onDelete: () -> Void
+
     @State private var transcript: String = ""
     @State private var summary: String = ""
+    @State private var isExporting = false
+    @State private var exportResults: [ExportResult]?
+    @State private var showExportResults = false
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    VStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(session.date.formatted(date: .long, time: .shortened))
                             .font(.title2)
-                        Text("Duration: \(formattedDuration)")
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Label(formattedDuration, systemImage: "clock")
+                            if !session.capturedApps.isEmpty {
+                                Label(
+                                    session.capturedApps.map(\.displayName).joined(separator: ", "),
+                                    systemImage: "app"
+                                )
+                            }
+                        }
+                        .foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
 
+                // Summary
                 if !summary.isEmpty {
                     GroupBox("Summary") {
                         Text(summary)
@@ -116,6 +177,7 @@ struct SessionDetailView: View {
                     }
                 }
 
+                // Transcript
                 if !transcript.isEmpty {
                     GroupBox("Transcript") {
                         Text(transcript)
@@ -126,10 +188,66 @@ struct SessionDetailView: View {
                 }
 
                 if summary.isEmpty && transcript.isEmpty {
-                    ContentUnavailableView("No Content", systemImage: "doc", description: Text("This session has no transcript or summary yet."))
+                    ContentUnavailableView(
+                        "No Content",
+                        systemImage: "doc",
+                        description: Text("This session has no transcript or summary yet.")
+                    )
                 }
             }
             .padding()
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    let folder = SessionManager.shared.sessionFolder(for: session)
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .help("Show in Finder")
+
+                Button {
+                    Task { await reExport() }
+                } label: {
+                    if isExporting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                .disabled(isExporting || (summary.isEmpty && transcript.isEmpty))
+                .help("Re-export session")
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Delete session")
+            }
+        }
+        .confirmationDialog(
+            "Delete Session?",
+            isPresented: $showDeleteConfirmation
+        ) {
+            Button("Delete", role: .destructive) {
+                try? SessionManager.shared.deleteSession(session)
+                onDelete()
+            }
+        } message: {
+            Text("Delete \"\(session.folderName)\" and all its files? This cannot be undone.")
+        }
+        .alert("Export Results", isPresented: $showExportResults) {
+            Button("OK") {}
+        } message: {
+            if let results = exportResults {
+                let lines = results.map { r in
+                    r.success ? "\(r.exporter): OK" : "\(r.exporter): \(r.error ?? "Failed")"
+                }
+                Text(lines.joined(separator: "\n"))
+            }
         }
         .onAppear { loadContent() }
         .onChange(of: session.id) { _, _ in loadContent() }
@@ -147,13 +265,31 @@ struct SessionDetailView: View {
         if let name = session.transcriptFileName {
             let url = folder.appendingPathComponent(name)
             transcript = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        } else {
+            transcript = ""
         }
         if let name = session.summaryFileName {
             let url = folder.appendingPathComponent(name)
             summary = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        } else {
+            summary = ""
         }
     }
+
+    private func reExport() async {
+        isExporting = true
+        let results = await ExportOrchestrator.exportAll(
+            session: session,
+            summary: summary.isEmpty ? transcript : summary,
+            transcript: transcript.isEmpty ? nil : transcript
+        )
+        exportResults = results
+        isExporting = false
+        showExportResults = true
+    }
 }
+
+// MARK: - Hashable
 
 extension Session: Hashable {
     static func == (lhs: Session, rhs: Session) -> Bool { lhs.id == rhs.id }
