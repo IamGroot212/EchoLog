@@ -112,6 +112,7 @@ final class RecordingController {
             try sessionManager.save(session)
 
             // Step 2: Summarize (if enabled)
+            var summaryText: String?
             if AppSettings.shared.autoSummarize {
                 statusText = "Summarizing..."
                 let summary = try await summarizer.summarize(
@@ -120,9 +121,25 @@ final class RecordingController {
                     duration: session.duration,
                     language: AppSettings.shared.defaultLanguage
                 )
+                summaryText = summary
                 session.summaryFileName = "summary.md"
                 try sessionManager.saveSummary(summary, for: session)
                 try sessionManager.save(session)
+            }
+
+            // Step 3: Export (if enabled)
+            if AppSettings.shared.autoExport {
+                statusText = "Exporting..."
+                let exportResults = await ExportOrchestrator.exportAll(
+                    session: session,
+                    summary: summaryText ?? result.transcript,
+                    transcript: result.transcript
+                )
+                let failures = exportResults.filter { !$0.success }
+                if !failures.isEmpty {
+                    let names = failures.compactMap { $0.error }.joined(separator: "; ")
+                    sendNotification(title: "Export Warning", body: names)
+                }
             }
 
             statusText = "Done"
@@ -130,7 +147,7 @@ final class RecordingController {
             currentSession = nil
             sessionManager.loadSessions()
 
-            sendNotification(title: "Summary Ready", body: "Session saved to ~/EchoLog/\(session.folderName)/")
+            sendNotification(title: "Session Complete", body: "Saved to ~/EchoLog/\(session.folderName)/")
         } catch {
             statusText = "Error: \(error.localizedDescription)"
             isProcessing = false
