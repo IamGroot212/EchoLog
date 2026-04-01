@@ -20,4 +20,5 @@ targets:
         CODE_SIGN_ENTITLEMENTS: EchoLog/EchoLog.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: com.felixbeckert.EchoLog
         ENABLE_HARDENED_RUNTIME: true
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 968N5744D2
