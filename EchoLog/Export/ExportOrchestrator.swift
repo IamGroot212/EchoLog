@@ -6,7 +6,7 @@ enum ExportError: LocalizedError {
     case notionDatabaseIdMissing
     case notionRequestFailed(String)
     case invalidURL(String)
-    case openClawRequestFailed(String)
+    case hermesRequestFailed(String)
     case iCloudWriteFailed(String)
 
     var errorDescription: String? {
@@ -16,7 +16,7 @@ enum ExportError: LocalizedError {
         case .notionDatabaseIdMissing: return "Notion database ID not configured."
         case .notionRequestFailed(let msg): return "Notion export failed: \(msg)"
         case .invalidURL(let name): return "Invalid URL for \(name)."
-        case .openClawRequestFailed(let msg): return "OpenClaw export failed: \(msg)"
+        case .hermesRequestFailed(let msg): return "Hermes Agent export failed: \(msg)"
         case .iCloudWriteFailed(let msg): return "iCloud export failed: \(msg)"
         }
     }
@@ -29,13 +29,11 @@ struct ExportResult {
 }
 
 enum ExportOrchestrator {
-    /// Run all enabled exporters for the given session.
-    /// Returns results for each attempted export.
     static func exportAll(session: Session, summary: String, transcript: String?) async -> [ExportResult] {
         let settings = AppSettings.shared
         var results: [ExportResult] = []
 
-        // Local is always on — just verify
+        // Local is always on
         do {
             _ = try LocalExporter.export(session: session)
             results.append(ExportResult(exporter: "Local", success: true, error: nil))
@@ -63,13 +61,13 @@ enum ExportOrchestrator {
             }
         }
 
-        // OpenClaw
-        if settings.exportOpenClawEnabled {
+        // Hermes Agent
+        if settings.exportHermesEnabled {
             do {
-                try await OpenClawExporter.export(session: session, summary: summary)
-                results.append(ExportResult(exporter: "OpenClaw", success: true, error: nil))
+                try await HermesAgentExporter.export(session: session, summary: summary)
+                results.append(ExportResult(exporter: "Hermes Agent", success: true, error: nil))
             } catch {
-                results.append(ExportResult(exporter: "OpenClaw", success: false, error: error.localizedDescription))
+                results.append(ExportResult(exporter: "Hermes Agent", success: false, error: error.localizedDescription))
             }
         }
 

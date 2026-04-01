@@ -117,19 +117,24 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "iCloudSaveTranscript") }
     }
 
-    var exportOpenClawEnabled: Bool {
-        get { defaults.bool(forKey: "exportOpenClawEnabled") }
-        set { defaults.set(newValue, forKey: "exportOpenClawEnabled") }
+    var exportHermesEnabled: Bool {
+        get { defaults.bool(forKey: "exportHermesEnabled") }
+        set { defaults.set(newValue, forKey: "exportHermesEnabled") }
     }
 
-    var openClawGatewayURL: String {
-        get { defaults.string(forKey: "openClawGatewayURL") ?? "http://localhost:3000" }
-        set { defaults.set(newValue, forKey: "openClawGatewayURL") }
+    var hermesBaseURL: String {
+        get { defaults.string(forKey: "hermesBaseURL") ?? "http://localhost:8642" }
+        set { defaults.set(newValue, forKey: "hermesBaseURL") }
     }
 
-    var openClawAgentId: String {
-        get { defaults.string(forKey: "openClawAgentId") ?? "" }
-        set { defaults.set(newValue, forKey: "openClawAgentId") }
+    var hermesAPIKey: String {
+        get { defaults.string(forKey: "hermesAPIKey") ?? "" }
+        set { defaults.set(newValue, forKey: "hermesAPIKey") }
+    }
+
+    var hermesInstruction: String {
+        get { defaults.string(forKey: "hermesInstruction") ?? HermesAgentExporter.defaultInstruction }
+        set { defaults.set(newValue, forKey: "hermesInstruction") }
     }
 
     private init() {}

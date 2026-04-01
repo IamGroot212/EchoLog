@@ -27,13 +27,14 @@ struct SettingsView: View {
     @State private var exportICloudEnabled: Bool = AppSettings.shared.exportICloudEnabled
     @State private var iCloudSubfolder: String = AppSettings.shared.iCloudSubfolder
     @State private var iCloudSaveTranscript: Bool = AppSettings.shared.iCloudSaveTranscript
-    @State private var exportOpenClawEnabled: Bool = AppSettings.shared.exportOpenClawEnabled
-    @State private var openClawURL: String = AppSettings.shared.openClawGatewayURL
-    @State private var openClawAgentId: String = AppSettings.shared.openClawAgentId
+    @State private var exportHermesEnabled: Bool = AppSettings.shared.exportHermesEnabled
+    @State private var hermesBaseURL: String = AppSettings.shared.hermesBaseURL
+    @State private var hermesAPIKey: String = AppSettings.shared.hermesAPIKey
+    @State private var hermesInstruction: String = AppSettings.shared.hermesInstruction
 
     @State private var ollamaStatus: String?
     @State private var notionTestStatus: String?
-    @State private var openClawTestStatus: String?
+    @State private var hermesTestStatus: String?
 
     private let languages = [
         ("en", "English"), ("de", "German"), ("fr", "French"),
@@ -255,28 +256,44 @@ struct SettingsView: View {
                 }
             }
 
-            Section("OpenClaw") {
-                Toggle("Enable OpenClaw export", isOn: $exportOpenClawEnabled)
-                    .onChange(of: exportOpenClawEnabled) { _, val in settings.exportOpenClawEnabled = val }
+            Section("Hermes Agent") {
+                Toggle("Enable Hermes Agent export", isOn: $exportHermesEnabled)
+                    .onChange(of: exportHermesEnabled) { _, val in settings.exportHermesEnabled = val }
 
-                if exportOpenClawEnabled {
-                    TextField("Gateway URL", text: $openClawURL)
+                if exportHermesEnabled {
+                    TextField("API URL", text: $hermesBaseURL)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: openClawURL) { _, val in settings.openClawGatewayURL = val }
-                    TextField("Agent ID", text: $openClawAgentId)
+                        .onChange(of: hermesBaseURL) { _, val in settings.hermesBaseURL = val }
+                    SecureField("API Key (optional for localhost)", text: $hermesAPIKey)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: openClawAgentId) { _, val in settings.openClawAgentId = val }
+                        .onChange(of: hermesAPIKey) { _, val in settings.hermesAPIKey = val }
+
+                    DisclosureGroup("Agent Instruction") {
+                        TextEditor(text: $hermesInstruction)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 80)
+                            .onChange(of: hermesInstruction) { _, val in settings.hermesInstruction = val }
+                        Button("Reset to Default") {
+                            hermesInstruction = HermesAgentExporter.defaultInstruction
+                            settings.hermesInstruction = hermesInstruction
+                        }
+                        .font(.caption)
+                    }
 
                     HStack {
-                        Button("Test Agent") {
-                            Task { await testOpenClawConnection() }
+                        Button("Test Connection") {
+                            Task { await testHermesConnection() }
                         }
-                        if let status = openClawTestStatus {
+                        if let status = hermesTestStatus {
                             Text(status)
                                 .foregroundStyle(status.contains("OK") ? .green : .red)
                                 .font(.caption)
                         }
                     }
+
+                    Text("Hermes Agent processes summaries using its 40+ built-in tools — Slack, email, task creation, and more.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -350,17 +367,8 @@ struct SettingsView: View {
         }
     }
 
-    private func testOpenClawConnection() async {
-        guard let url = URL(string: openClawURL) else {
-            openClawTestStatus = "Invalid URL"
-            return
-        }
-        do {
-            let (_, response) = try await URLSession.shared.data(from: url)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            openClawTestStatus = (200...299).contains(code) ? "OK — Reachable" : "HTTP \(code)"
-        } catch {
-            openClawTestStatus = "Not reachable"
-        }
+    private func testHermesConnection() async {
+        let available = await HermesAgentExporter.checkHealth(baseURL: hermesBaseURL)
+        hermesTestStatus = available ? "OK — Connected" : "Not reachable"
     }
 }
