@@ -1,17 +1,20 @@
 import Foundation
+import AppKit
 import AVFoundation
-import ScreenCaptureKit
+import CoreGraphics
 
 enum PermissionsManager {
     // MARK: - Screen Recording
 
-    static func checkScreenRecording() async -> Bool {
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-            return true
-        } catch {
-            return false
-        }
+    /// Check if Screen Recording permission is granted WITHOUT triggering a system prompt.
+    static func checkScreenRecording() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    /// Request Screen Recording access — shows the system dialog directing to System Settings.
+    /// Call this only once (e.g., during onboarding), not before every recording.
+    static func requestScreenRecording() {
+        CGRequestScreenCaptureAccess()
     }
 
     static func openScreenRecordingSettings() {

@@ -215,7 +215,7 @@ struct OnboardingView: View {
 
     private func refreshStatus() async {
         micGranted = PermissionsManager.checkMicrophone()
-        screenGranted = await PermissionsManager.checkScreenRecording()
+        screenGranted = PermissionsManager.checkScreenRecording()
         whisperInstalled = PermissionsManager.checkWhisperInstalled()
         ollamaRunning = await PermissionsManager.checkOllamaRunning()
     }

@@ -189,6 +189,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
+					CDF151F10461D06BF7BA627D = {
+						DevelopmentTeam = 968N5744D2;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = D4C2AB2AF8CE734AE0C0F46A /* Build configuration list for PBXProject "EchoLog" */;
@@ -262,8 +266,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EchoLog/EchoLog.entitlements;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 968N5744D2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = EchoLog/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -280,8 +285,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = EchoLog/EchoLog.entitlements;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 968N5744D2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = EchoLog/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

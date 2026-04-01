@@ -2,6 +2,7 @@ import Foundation
 import ScreenCaptureKit
 import AVFoundation
 import CoreMedia
+import CoreGraphics
 
 enum AudioCaptureError: LocalizedError {
     case noDisplayFound
@@ -118,6 +119,9 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
     // MARK: - Available Apps
 
     func availableApps() async throws -> [CapturedApp] {
+        guard CGPreflightScreenCaptureAccess() else {
+            throw AudioCaptureError.screenCapturePermissionDenied
+        }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         return content.applications.compactMap { app -> CapturedApp? in
             let bundleID = app.bundleIdentifier
@@ -132,12 +136,11 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
     // MARK: - ScreenCaptureKit (System / Per-App Audio)
 
     private func startScreenCapture(appFilter: String?) async throws {
-        let content: SCShareableContent
-        do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-        } catch {
+        guard CGPreflightScreenCaptureAccess() else {
             throw AudioCaptureError.screenCapturePermissionDenied
         }
+
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 
         guard let display = content.displays.first else {
             throw AudioCaptureError.noDisplayFound
