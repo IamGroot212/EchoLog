@@ -6,7 +6,7 @@ final class AppSettings {
     private let defaults = UserDefaults.standard
 
     var whisperBinaryPath: String {
-        get { defaults.string(forKey: "whisperBinaryPath") ?? "/opt/homebrew/bin/whisper-cpp" }
+        get { defaults.string(forKey: "whisperBinaryPath") ?? "/opt/homebrew/bin/whisper-cli" }
         set { defaults.set(newValue, forKey: "whisperBinaryPath") }
     }
 
