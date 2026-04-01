@@ -9,6 +9,7 @@ final class RecordingController {
     private(set) var isProcessing = false
     private(set) var statusText = "Idle"
     private(set) var elapsedSeconds = 0
+    private(set) var isMicMuted = false
 
     var selectedMode: AudioCaptureMode = .systemAudio
     var availableApps: [CapturedApp] = []
@@ -41,6 +42,16 @@ final class RecordingController {
         hotkeyManager?.reRegister()
     }
 
+    func toggleMic() {
+        guard isRecording else { return }
+        isMicMuted.toggle()
+        engine.setMicMuted(isMicMuted)
+        sendNotification(
+            title: isMicMuted ? "Microphone Muted" : "Microphone Active",
+            body: isMicMuted ? "Your microphone is muted." : "Your microphone is now recording."
+        )
+    }
+
     // MARK: - Public API
 
     func toggleRecording() async {
@@ -65,7 +76,9 @@ final class RecordingController {
             let (session, audioURL) = try sessionManager.createSession(apps: apps)
             currentSession = session
 
-            try await engine.startCapture(mode: selectedMode, outputURL: audioURL)
+            let includeMic = selectedMode != .microphoneOnly && AppSettings.shared.includeMicrophone
+            try await engine.startCapture(mode: selectedMode, outputURL: audioURL, includeMicrophone: includeMic)
+            isMicMuted = false
 
             isRecording = true
             elapsedSeconds = 0

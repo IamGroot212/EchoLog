@@ -26,7 +26,7 @@ struct MenuBarView: View {
                 @Bindable var ctrl = controller
                 Menu("Mode: \(modeLabel)") {
                     Button("System Audio") { ctrl.selectedMode = .systemAudio }
-                    Button("Microphone") { ctrl.selectedMode = .microphone }
+                    Button("Microphone Only") { ctrl.selectedMode = .microphoneOnly }
                     Divider()
                     if controller.availableApps.isEmpty {
                         Button("Load Apps...") {
@@ -43,10 +43,24 @@ struct MenuBarView: View {
                 .menuStyle(.borderlessButton)
             }
 
-            // Start / Stop
+            // Start / Stop + Mic Mute
             if controller.isRecording {
-                Button("Stop & Process") {
-                    Task { await controller.stopRecording() }
+                HStack {
+                    Button("Stop & Process") {
+                        Task { await controller.stopRecording() }
+                    }
+                    Spacer()
+                    // Mic mute toggle (only for modes that include mic)
+                    if controller.selectedMode != .microphoneOnly {
+                        Button {
+                            controller.toggleMic()
+                        } label: {
+                            Image(systemName: controller.isMicMuted ? "mic.slash.fill" : "mic.fill")
+                                .foregroundStyle(controller.isMicMuted ? .red : .green)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(controller.isMicMuted ? "Unmute microphone" : "Mute microphone")
+                    }
                 }
             } else if controller.isProcessing {
                 ProgressView()
@@ -58,10 +72,15 @@ struct MenuBarView: View {
                 }
             }
 
-            // Hotkey hint
-            Text("⌘⇧R to toggle")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            // Hotkey hints
+            HStack(spacing: 8) {
+                Text("⌘⇧R record")
+                if controller.isRecording && controller.selectedMode != .microphoneOnly {
+                    Text("⌘⇧M mute mic")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
 
             // Recent sessions
             let sessions = SessionManager.shared.sessions
@@ -112,7 +131,7 @@ struct MenuBarView: View {
     private var modeLabel: String {
         switch controller.selectedMode {
         case .systemAudio: return "System Audio"
-        case .microphone: return "Microphone"
+        case .microphoneOnly: return "Microphone Only"
         case .perApp(let id):
             return controller.availableApps.first { $0.bundleIdentifier == id }?.displayName ?? id
         }

@@ -8,6 +8,7 @@ enum AudioCaptureError: LocalizedError {
     case appNotFound(bundleIdentifier: String)
     case notCapturing
     case screenCapturePermissionDenied
+    case microphoneUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum AudioCaptureError: LocalizedError {
             return "Not currently capturing audio."
         case .screenCapturePermissionDenied:
             return "Screen Recording permission is required. Enable it in System Settings > Privacy & Security > Screen Recording."
+        case .microphoneUnavailable:
+            return "Microphone is not available or permission was denied."
         }
     }
 }
@@ -27,6 +30,9 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var captureStartDate: Date?
 
+    /// When true, microphone audio is silently discarded (can be toggled during recording)
+    var isMicMuted = false
+
     private var scStream: SCStream?
     private var audioEngine: AVAudioEngine?
     private var wavWriter: WAVWriter?
@@ -34,13 +40,19 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
 
     private let writeQueue = DispatchQueue(label: "com.echoLog.audioWrite", qos: .userInitiated)
 
-    // Resampler for converting ScreenCaptureKit's 48kHz Float32 → 16kHz Int16
-    private var audioConverter: AVAudioConverter?
-    private var sourceFormat: AVAudioFormat?
+    // Separate converters for each source
+    private var scConverter: AVAudioConverter?
+    private var scSourceFormat: AVAudioFormat?
+    private var micConverter: AVAudioConverter?
 
     // MARK: - Public API
 
-    func startCapture(mode: AudioCaptureMode, outputURL: URL) async throws {
+    /// Start audio capture.
+    /// - Parameters:
+    ///   - mode: System audio, per-app, or microphone-only
+    ///   - outputURL: WAV file path
+    ///   - includeMicrophone: Also capture microphone alongside system/per-app audio (ignored for microphoneOnly mode)
+    func startCapture(mode: AudioCaptureMode, outputURL: URL, includeMicrophone: Bool = true) async throws {
         self.mode = mode
 
         let writer = WAVWriter(outputURL: outputURL)
@@ -50,9 +62,15 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         switch mode {
         case .systemAudio:
             try await startScreenCapture(appFilter: nil)
+            if includeMicrophone {
+                try startMicrophoneCapture()
+            }
         case .perApp(let bundleID):
             try await startScreenCapture(appFilter: bundleID)
-        case .microphone:
+            if includeMicrophone {
+                try startMicrophoneCapture()
+            }
+        case .microphoneOnly:
             try startMicrophoneCapture()
         }
 
@@ -65,11 +83,13 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
             throw AudioCaptureError.notCapturing
         }
 
+        // Stop ScreenCaptureKit stream
         if let stream = scStream {
             try await stream.stopCapture()
             scStream = nil
         }
 
+        // Stop microphone engine
         if let engine = audioEngine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
@@ -82,12 +102,17 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
 
         isCapturing = false
         captureStartDate = nil
-        audioConverter = nil
-        sourceFormat = nil
+        scConverter = nil
+        scSourceFormat = nil
+        micConverter = nil
 
         let url = writer.outputURL
         wavWriter = nil
         return url
+    }
+
+    func setMicMuted(_ muted: Bool) {
+        isMicMuted = muted
     }
 
     // MARK: - Available Apps
@@ -104,7 +129,7 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         }.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
-    // MARK: - ScreenCaptureKit
+    // MARK: - ScreenCaptureKit (System / Per-App Audio)
 
     private func startScreenCapture(appFilter: String?) async throws {
         let content: SCShareableContent
@@ -135,15 +160,13 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         config.sampleRate = 48000
         config.channelCount = 1
         config.excludesCurrentProcessAudio = true
-        // Minimal video — we only care about audio
         config.width = 2
         config.height = 2
 
-        // Set up the audio converter: 48kHz Float32 mono → 16kHz Int16 mono
         let srcFmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48000, channels: 1, interleaved: false)!
         let dstFmt = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
-        audioConverter = AVAudioConverter(from: srcFmt, to: dstFmt)
-        sourceFormat = srcFmt
+        scConverter = AVAudioConverter(from: srcFmt, to: dstFmt)
+        scSourceFormat = srcFmt
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: writeQueue)
@@ -160,11 +183,13 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
 
         let targetFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
         guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
-            throw AudioCaptureError.noDisplayFound // reuse error; mic format unsupported
+            throw AudioCaptureError.microphoneUnavailable
         }
+        micConverter = converter
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            self?.processMicBuffer(buffer, converter: converter, targetFormat: targetFormat)
+            guard let self, !self.isMicMuted else { return }
+            self.processMicBuffer(buffer, converter: converter, targetFormat: targetFormat)
         }
 
         try engine.start()
@@ -213,14 +238,12 @@ extension AudioCaptureEngine: SCStreamOutput {
     }
 
     private func processSCKAudioBuffer(_ sampleBuffer: CMSampleBuffer) {
-        guard let converter = audioConverter,
-              let srcFmt = sourceFormat else { return }
+        guard let converter = scConverter,
+              let srcFmt = scSourceFormat else { return }
 
-        // Get the number of samples
         let numSamples = CMSampleBufferGetNumSamples(sampleBuffer)
         guard numSamples > 0 else { return }
 
-        // Extract audio buffer list
         var audioBufferList = AudioBufferList()
         var blockBuffer: CMBlockBuffer?
         CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
@@ -237,7 +260,6 @@ extension AudioCaptureEngine: SCStreamOutput {
         guard let bufferData = audioBufferList.mBuffers.mData else { return }
         let bufferByteSize = Int(audioBufferList.mBuffers.mDataByteSize)
 
-        // Wrap Float32 samples in an AVAudioPCMBuffer
         guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: srcFmt, frameCapacity: AVAudioFrameCount(numSamples)) else {
             return
         }
@@ -246,7 +268,6 @@ extension AudioCaptureEngine: SCStreamOutput {
         guard let floatChannelData = inputBuffer.floatChannelData else { return }
         memcpy(floatChannelData[0], bufferData, min(bufferByteSize, Int(numSamples) * MemoryLayout<Float>.size))
 
-        // Convert to 16kHz Int16
         let outputFrameCapacity = AVAudioFrameCount(Double(numSamples) * (16000.0 / 48000.0))
         guard outputFrameCapacity > 0 else { return }
 
@@ -273,7 +294,10 @@ extension AudioCaptureEngine: SCStreamOutput {
         guard let int16Data = outputBuffer.int16ChannelData else { return }
         let data = Data(bytes: int16Data[0], count: byteCount)
 
-        try? wavWriter?.appendPCMData(data)
+        // Write via async to keep consistent with mic path
+        writeQueue.async { [weak self] in
+            try? self?.wavWriter?.appendPCMData(data)
+        }
     }
 }
 
@@ -281,7 +305,6 @@ extension AudioCaptureEngine: SCStreamOutput {
 
 extension AudioCaptureEngine: SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        // Stream stopped unexpectedly — could handle reconnection here
         isCapturing = false
     }
 }

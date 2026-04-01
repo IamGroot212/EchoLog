@@ -75,8 +75,15 @@ struct SettingsView: View {
                     }
             }
 
-            Section("Hotkey") {
+            Section("Hotkeys") {
                 HotkeyRecorderView {
+                    controller.reRegisterHotkey()
+                }
+                HotkeyRecorderView(
+                    label: "Mic Mute Hotkey",
+                    settingsKeyCode: \.micMuteKeyCode,
+                    settingsModifiers: \.micMuteModifiers
+                ) {
                     controller.reRegisterHotkey()
                 }
             }
@@ -87,8 +94,13 @@ struct SettingsView: View {
                     set: { settings.captureModeRaw = $0 }
                 )) {
                     Text("System Audio").tag("systemAudio")
-                    Text("Microphone").tag("microphone")
+                    Text("Microphone Only").tag("microphoneOnly")
                 }
+
+                Toggle("Include microphone in system/app recordings", isOn: Binding(
+                    get: { settings.includeMicrophone },
+                    set: { settings.includeMicrophone = $0 }
+                ))
 
                 Toggle("Auto-summarize after recording", isOn: $autoSummarize)
                     .onChange(of: autoSummarize) { _, val in settings.autoSummarize = val }

@@ -2,16 +2,47 @@ import SwiftUI
 import Carbon.HIToolbox
 
 struct HotkeyRecorderView: View {
+    private let label: String
+    private let keyCodePath: ReferenceWritableKeyPath<AppSettings, UInt16>
+    private let modifiersPath: ReferenceWritableKeyPath<AppSettings, UInt>
+    private let defaultKeyCode: UInt16
+    private let onChanged: (() -> Void)?
+
     @State private var isRecording = false
-    @State private var currentKeyCode: UInt16 = AppSettings.shared.hotkeyKeyCode
-    @State private var currentModifiers: NSEvent.ModifierFlags = NSEvent.ModifierFlags(rawValue: AppSettings.shared.hotkeyModifiers)
+    @State private var currentKeyCode: UInt16
+    @State private var currentModifiers: NSEvent.ModifierFlags
     @State private var localMonitor: Any?
 
-    var onHotkeyChanged: (() -> Void)?
+    /// Default initializer for the recording toggle hotkey (⌘⇧R)
+    init(onHotkeyChanged: (() -> Void)? = nil) {
+        self.label = "Record Hotkey"
+        self.keyCodePath = \.hotkeyKeyCode
+        self.modifiersPath = \.hotkeyModifiers
+        self.defaultKeyCode = 15 // R
+        self.onChanged = onHotkeyChanged
+        self._currentKeyCode = State(initialValue: AppSettings.shared.hotkeyKeyCode)
+        self._currentModifiers = State(initialValue: NSEvent.ModifierFlags(rawValue: AppSettings.shared.hotkeyModifiers))
+    }
+
+    /// Configurable initializer for any hotkey
+    init(
+        label: String,
+        settingsKeyCode: ReferenceWritableKeyPath<AppSettings, UInt16>,
+        settingsModifiers: ReferenceWritableKeyPath<AppSettings, UInt>,
+        onHotkeyChanged: (() -> Void)? = nil
+    ) {
+        self.label = label
+        self.keyCodePath = settingsKeyCode
+        self.modifiersPath = settingsModifiers
+        self.defaultKeyCode = AppSettings.shared[keyPath: settingsKeyCode]
+        self.onChanged = onHotkeyChanged
+        self._currentKeyCode = State(initialValue: AppSettings.shared[keyPath: settingsKeyCode])
+        self._currentModifiers = State(initialValue: NSEvent.ModifierFlags(rawValue: AppSettings.shared[keyPath: settingsModifiers]))
+    }
 
     var body: some View {
         HStack {
-            Text("Global Hotkey")
+            Text(label)
             Spacer()
             Button(action: { toggleRecording() }) {
                 Text(isRecording ? "Press a key..." : displayString)
@@ -24,8 +55,7 @@ struct HotkeyRecorderView: View {
 
             if !isRecording {
                 Button("Clear") {
-                    // Reset to default ⌘⇧R
-                    currentKeyCode = 15
+                    currentKeyCode = defaultKeyCode
                     currentModifiers = [.command, .shift]
                     saveHotkey()
                 }
@@ -45,11 +75,7 @@ struct HotkeyRecorderView: View {
     }
 
     private func toggleRecording() {
-        if isRecording {
-            stopListening()
-        } else {
-            startListening()
-        }
+        if isRecording { stopListening() } else { startListening() }
     }
 
     private func startListening() {
@@ -57,15 +83,8 @@ struct HotkeyRecorderView: View {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             let relevantMods: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
             let mods = event.modifierFlags.intersection(relevantMods)
-
-            // Require at least one modifier
             guard !mods.isEmpty else { return event }
-
-            // Escape cancels
-            if event.keyCode == 53 {
-                stopListening()
-                return nil
-            }
+            if event.keyCode == 53 { stopListening(); return nil }
 
             currentKeyCode = event.keyCode
             currentModifiers = mods
@@ -84,9 +103,9 @@ struct HotkeyRecorderView: View {
     }
 
     private func saveHotkey() {
-        AppSettings.shared.hotkeyKeyCode = currentKeyCode
-        AppSettings.shared.hotkeyModifiers = currentModifiers.rawValue
-        onHotkeyChanged?()
+        AppSettings.shared[keyPath: keyCodePath] = currentKeyCode
+        AppSettings.shared[keyPath: modifiersPath] = currentModifiers.rawValue
+        onChanged?()
     }
 
     private func keyCodeToString(_ keyCode: UInt16) -> String {

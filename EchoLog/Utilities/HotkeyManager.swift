@@ -12,25 +12,26 @@ final class HotkeyManager {
 
     func register() {
         let settings = AppSettings.shared
-        let targetKeyCode = settings.hotkeyKeyCode
-        let targetModifiers = NSEvent.ModifierFlags(rawValue: settings.hotkeyModifiers)
+        let recordKeyCode = settings.hotkeyKeyCode
+        let recordModifiers = NSEvent.ModifierFlags(rawValue: settings.hotkeyModifiers)
+        let micKeyCode = settings.micMuteKeyCode
+        let micModifiers = NSEvent.ModifierFlags(rawValue: settings.micMuteModifiers)
 
-        // Global monitor — fires when EchoLog is NOT the focused app
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if self?.matchesHotkey(event, keyCode: targetKeyCode, modifiers: targetModifiers) == true {
-                Task { @MainActor in
-                    await self?.controller?.toggleRecording()
-                }
+            if self?.matchesHotkey(event, keyCode: recordKeyCode, modifiers: recordModifiers) == true {
+                Task { @MainActor in await self?.controller?.toggleRecording() }
+            } else if self?.matchesHotkey(event, keyCode: micKeyCode, modifiers: micModifiers) == true {
+                Task { @MainActor in self?.controller?.toggleMic() }
             }
         }
 
-        // Local monitor — fires when EchoLog IS the focused app
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if self?.matchesHotkey(event, keyCode: targetKeyCode, modifiers: targetModifiers) == true {
-                Task { @MainActor in
-                    await self?.controller?.toggleRecording()
-                }
-                return nil // consume the event
+            if self?.matchesHotkey(event, keyCode: recordKeyCode, modifiers: recordModifiers) == true {
+                Task { @MainActor in await self?.controller?.toggleRecording() }
+                return nil
+            } else if self?.matchesHotkey(event, keyCode: micKeyCode, modifiers: micModifiers) == true {
+                Task { @MainActor in self?.controller?.toggleMic() }
+                return nil
             }
             return event
         }
@@ -53,7 +54,6 @@ final class HotkeyManager {
     }
 
     private func matchesHotkey(_ event: NSEvent, keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
-        // Mask to only care about command, shift, option, control
         let relevantFlags: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
         let eventMods = event.modifierFlags.intersection(relevantFlags)
         let targetMods = modifiers.intersection(relevantFlags)
@@ -61,12 +61,7 @@ final class HotkeyManager {
     }
 
     deinit {
-        // Note: deinit runs on whatever thread; monitors must be removed
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
+        if let monitor = globalMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = localMonitor { NSEvent.removeMonitor(monitor) }
     }
 }

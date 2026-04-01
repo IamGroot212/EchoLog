@@ -71,6 +71,30 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "hotkeyModifiers") }
     }
 
+    // MARK: - Microphone Settings
+
+    var includeMicrophone: Bool {
+        get { defaults.object(forKey: "includeMicrophone") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "includeMicrophone") }
+    }
+
+    /// Key code for mic mute hotkey (default: 46 = M)
+    var micMuteKeyCode: UInt16 {
+        get {
+            let val = defaults.object(forKey: "micMuteKeyCode") as? Int
+            return val.map { UInt16($0) } ?? 46
+        }
+        set { defaults.set(Int(newValue), forKey: "micMuteKeyCode") }
+    }
+
+    /// Modifier flags for mic mute hotkey (default: ⌘⇧)
+    var micMuteModifiers: UInt {
+        get {
+            defaults.object(forKey: "micMuteModifiers") as? UInt ?? 1_179_648
+        }
+        set { defaults.set(newValue, forKey: "micMuteModifiers") }
+    }
+
     // MARK: - Onboarding
 
     var hasCompletedOnboarding: Bool {
