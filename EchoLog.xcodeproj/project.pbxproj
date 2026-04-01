@@ -20,8 +20,10 @@
 		7E713F3CD5D53BCDB286BEF1 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9862463EDBE6080414E029 /* PermissionsManager.swift */; };
 		7FD4486E8B81B9A72DABDE39 /* WAVWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C515A671621FE06AF746F0CF /* WAVWriter.swift */; };
 		8E2534CD96F44867226DCEE4 /* LLMSummarizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD0D0E9E04BBC500B5C1DD9 /* LLMSummarizer.swift */; };
+		B1CC220EBFB7CA3611560F68 /* MarkdownFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874852895604AA772B112573 /* MarkdownFormatter.swift */; };
 		B804DE3DCA3EB2AF7660ED29 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02511D02F8140AA6D3A94F80 /* SessionManager.swift */; };
 		BDAB5984E30ED5E2315FB2E8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9B0CBE264AD0037F66CFB9 /* AppSettings.swift */; };
+		CAFB24B98E4F27329C1DEE9D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 406FFC088F09D0802392BDE8 /* Assets.xcassets */; };
 		D2498DFB3EE86AF95D297FDF /* HermesAgentExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF94C9CF99FBD5EFC2BFCF2 /* HermesAgentExporter.swift */; };
 		D882A6066F0FB857231D8F19 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F42383C077AC72EF42B7E3 /* HotkeyManager.swift */; };
 		DC9C553C513BB9155AA907C8 /* HotkeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F3F89745EDD4CF3E81E700 /* HotkeyRecorderView.swift */; };
@@ -39,6 +41,7 @@
 		1AF94C9CF99FBD5EFC2BFCF2 /* HermesAgentExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesAgentExporter.swift; sourceTree = "<group>"; };
 		2120A2479B6D954A41E409A1 /* SessionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionHistoryView.swift; sourceTree = "<group>"; };
 		2293BD85CA8AAAD4F482DFDA /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		406FFC088F09D0802392BDE8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4B9B0CBE264AD0037F66CFB9 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		4CD0D0E9E04BBC500B5C1DD9 /* LLMSummarizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMSummarizer.swift; sourceTree = "<group>"; };
 		4F702891DB2D8B7548864BD4 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
@@ -46,6 +49,7 @@
 		6A0250BD886E6726E45E2AE5 /* AudioCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureEngine.swift; sourceTree = "<group>"; };
 		6A518A22C20AB3A9D7845B10 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		85CC940419A41BA18C902199 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		874852895604AA772B112573 /* MarkdownFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownFormatter.swift; sourceTree = "<group>"; };
 		89F3F89745EDD4CF3E81E700 /* HotkeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderView.swift; sourceTree = "<group>"; };
 		9B7E9A5F79E90E33328BE42F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AF1844E31F0AE86571D297C0 /* WhisperBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperBridge.swift; sourceTree = "<group>"; };
@@ -131,6 +135,7 @@
 		D25157E0ACA2C28527167489 /* EchoLog */ = {
 			isa = PBXGroup;
 			children = (
+				406FFC088F09D0802392BDE8 /* Assets.xcassets */,
 				FCC5CF2394519AA5144307C9 /* EchoLog.entitlements */,
 				F9EE7C49EBA685B26BB942E3 /* EchoLogApp.swift */,
 				9B7E9A5F79E90E33328BE42F /* Info.plist */,
@@ -148,6 +153,7 @@
 			children = (
 				58F42383C077AC72EF42B7E3 /* HotkeyManager.swift */,
 				BE5FFBB3774104960D153179 /* KeychainHelper.swift */,
+				874852895604AA772B112573 /* MarkdownFormatter.swift */,
 				CA9862463EDBE6080414E029 /* PermissionsManager.swift */,
 			);
 			path = Utilities;
@@ -161,6 +167,7 @@
 			buildConfigurationList = 271590964BFA686634205A1A /* Build configuration list for PBXNativeTarget "EchoLog" */;
 			buildPhases = (
 				C948ED5397B9B0A9324FB164 /* Sources */,
+				E21F6CE19DCDDAAF8261CB43 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -203,6 +210,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		E21F6CE19DCDDAAF8261CB43 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CAFB24B98E4F27329C1DEE9D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		C948ED5397B9B0A9324FB164 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -220,6 +238,7 @@
 				E04D68FD45A598212135AFB4 /* KeychainHelper.swift in Sources */,
 				8E2534CD96F44867226DCEE4 /* LLMSummarizer.swift in Sources */,
 				FD941A4D2C12F44FA3A1BBF3 /* LocalExporter.swift in Sources */,
+				B1CC220EBFB7CA3611560F68 /* MarkdownFormatter.swift in Sources */,
 				4B5EE5075AB1F96CD86C4B63 /* MenuBarView.swift in Sources */,
 				2E0E180A1776248CF8CAB742 /* NotionExporter.swift in Sources */,
 				FB1F47B63B1B92554C2BC456 /* OnboardingView.swift in Sources */,

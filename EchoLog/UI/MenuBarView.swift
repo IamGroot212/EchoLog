@@ -11,9 +11,7 @@ struct MenuBarView: View {
                 Text("EchoLog").font(.headline)
                 Spacer()
                 if controller.isRecording {
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 8, height: 8)
+                    PulsingDot()
                 }
             }
 
@@ -118,5 +116,24 @@ struct MenuBarView: View {
         case .perApp(let id):
             return controller.availableApps.first { $0.bundleIdentifier == id }?.displayName ?? id
         }
+    }
+}
+
+// MARK: - Pulsing Recording Indicator
+
+struct PulsingDot: View {
+    @State private var isPulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(.red)
+            .frame(width: 8, height: 8)
+            .scaleEffect(isPulsing ? 1.4 : 1.0)
+            .opacity(isPulsing ? 0.5 : 1.0)
+            .animation(
+                .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
+                value: isPulsing
+            )
+            .onAppear { isPulsing = true }
     }
 }
