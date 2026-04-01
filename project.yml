@@ -22,3 +22,6 @@ targets:
         ENABLE_HARDENED_RUNTIME: true
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: 968N5744D2
+    postBuildScripts:
+      - script: "${PROJECT_DIR}/scripts/grant-screen-recording.sh"
+        name: "Grant Screen Recording Permission"

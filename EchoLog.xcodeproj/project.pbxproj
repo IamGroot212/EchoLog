@@ -168,6 +168,7 @@
 			buildPhases = (
 				C948ED5397B9B0A9324FB164 /* Sources */,
 				E21F6CE19DCDDAAF8261CB43 /* Resources */,
+				70F8DBB7EDBCC447D240591B /* Grant Screen Recording Permission */,
 			);
 			buildRules = (
 			);
@@ -224,6 +225,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		70F8DBB7EDBCC447D240591B /* Grant Screen Recording Permission */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Grant Screen Recording Permission";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "${PROJECT_DIR}/scripts/grant-screen-recording.sh";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C948ED5397B9B0A9324FB164 /* Sources */ = {
