@@ -30,17 +30,20 @@ final class LLMSummarizer {
     You are a meeting and conversation summarizer. Given the following transcript, \
     extract and structure the most important information.
 
+    IMPORTANT: Write the summary in the same language the meeting was conducted in. \
+    If the language cannot be determined, default to German.
+
     Output a clean Markdown document with these sections:
-    ## Summary
+    ## Zusammenfassung / Summary
     (2-4 sentence overview of what was discussed)
 
-    ## Key Points
+    ## Kernpunkte / Key Points
     (bullet list of the most important facts, decisions, or insights)
 
-    ## Action Items
+    ## Aufgaben / Action Items
     (bullet list of tasks, todos, or follow-ups mentioned — leave empty if none)
 
-    ## Context
+    ## Kontext / Context
     (app(s) captured: {apps}, duration: {duration}, language: {language})
 
     ---
