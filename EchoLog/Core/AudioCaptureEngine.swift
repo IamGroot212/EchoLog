@@ -31,30 +31,30 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var captureStartDate: Date?
 
-    /// When true, microphone audio is silently discarded (can be toggled during recording)
     var isMicMuted = false
 
     private var scStream: SCStream?
     private var audioEngine: AVAudioEngine?
     private var wavWriter: WAVWriter?
     private var mode: AudioCaptureMode = .systemAudio
+    private var isDualCapture = false
 
     private let writeQueue = DispatchQueue(label: "com.echoLog.audioWrite", qos: .userInitiated)
 
-    // Separate converters for each source
+    // Converters
     private var scConverter: AVAudioConverter?
     private var scSourceFormat: AVAudioFormat?
     private var micConverter: AVAudioConverter?
 
+    // Mic mixing buffer — mic samples accumulate here, get mixed when system audio writes
+    private var micBuffer = Data()
+    private let micBufferLock = NSLock()
+
     // MARK: - Public API
 
-    /// Start audio capture.
-    /// - Parameters:
-    ///   - mode: System audio, per-app, or microphone-only
-    ///   - outputURL: WAV file path
-    ///   - includeMicrophone: Also capture microphone alongside system/per-app audio (ignored for microphoneOnly mode)
     func startCapture(mode: AudioCaptureMode, outputURL: URL, includeMicrophone: Bool = true) async throws {
         self.mode = mode
+        micBuffer = Data()
 
         let writer = WAVWriter(outputURL: outputURL)
         try writer.start()
@@ -63,15 +63,18 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         switch mode {
         case .systemAudio:
             try await startScreenCapture(appFilter: nil)
+            isDualCapture = includeMicrophone
             if includeMicrophone {
                 try startMicrophoneCapture()
             }
         case .perApp(let bundleID):
             try await startScreenCapture(appFilter: bundleID)
+            isDualCapture = includeMicrophone
             if includeMicrophone {
                 try startMicrophoneCapture()
             }
         case .microphoneOnly:
+            isDualCapture = false
             try startMicrophoneCapture()
         }
 
@@ -84,13 +87,11 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
             throw AudioCaptureError.notCapturing
         }
 
-        // Stop ScreenCaptureKit stream
         if let stream = scStream {
             try await stream.stopCapture()
             scStream = nil
         }
 
-        // Stop microphone engine
         if let engine = audioEngine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
@@ -98,6 +99,13 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         }
 
         writeQueue.sync {
+            // Flush any remaining mic buffer
+            self.micBufferLock.lock()
+            if !self.micBuffer.isEmpty {
+                try? writer.appendPCMData(self.micBuffer)
+                self.micBuffer = Data()
+            }
+            self.micBufferLock.unlock()
             try? writer.finalize()
         }
 
@@ -106,6 +114,7 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         scConverter = nil
         scSourceFormat = nil
         micConverter = nil
+        isDualCapture = false
 
         let url = writer.outputURL
         wavWriter = nil
@@ -130,7 +139,7 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         }.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
-    // MARK: - ScreenCaptureKit (System / Per-App Audio)
+    // MARK: - ScreenCaptureKit
 
     private func startScreenCapture(appFilter: String?) async throws {
         let content: SCShareableContent
@@ -175,7 +184,7 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         scStream = stream
     }
 
-    // MARK: - Microphone (AVAudioEngine)
+    // MARK: - Microphone
 
     private func startMicrophoneCapture() throws {
         let engine = AVAudioEngine()
@@ -224,9 +233,58 @@ final class AudioCaptureEngine: NSObject, @unchecked Sendable {
         guard let int16Data = outputBuffer.int16ChannelData else { return }
         let data = Data(bytes: int16Data[0], count: byteCount)
 
-        writeQueue.async { [weak self] in
-            try? self?.wavWriter?.appendPCMData(data)
+        if isDualCapture {
+            // In dual mode: accumulate mic samples, they get mixed when system audio writes
+            micBufferLock.lock()
+            micBuffer.append(data)
+            micBufferLock.unlock()
+        } else {
+            // Mic-only mode: write directly
+            writeQueue.async { [weak self] in
+                try? self?.wavWriter?.appendPCMData(data)
+            }
         }
+    }
+
+    // MARK: - Mix & Write
+
+    /// Mix system audio with accumulated mic samples and write to WAV.
+    /// Called on writeQueue from the SCStream callback.
+    private func mixAndWrite(systemAudio: Data) {
+        micBufferLock.lock()
+        let micData = micBuffer
+        micBuffer = Data()
+        micBufferLock.unlock()
+
+        if micData.isEmpty {
+            // No mic data — write system audio as-is
+            try? wavWriter?.appendPCMData(systemAudio)
+            return
+        }
+
+        // Mix: add corresponding Int16 samples, clamp to Int16 range
+        let sysCount = systemAudio.count / 2  // Int16 = 2 bytes
+        let micCount = micData.count / 2
+        let mixCount = max(sysCount, micCount)
+
+        var mixed = Data(capacity: mixCount * 2)
+
+        systemAudio.withUnsafeBytes { sysRaw in
+            micData.withUnsafeBytes { micRaw in
+                let sysPtr = sysRaw.bindMemory(to: Int16.self)
+                let micPtr = micRaw.bindMemory(to: Int16.self)
+
+                for i in 0..<mixCount {
+                    let s: Int32 = i < sysCount ? Int32(sysPtr[i]) : 0
+                    let m: Int32 = i < micCount ? Int32(micPtr[i]) : 0
+                    let sum = max(-32768, min(32767, s + m))
+                    var sample = Int16(sum)
+                    mixed.append(Data(bytes: &sample, count: 2))
+                }
+            }
+        }
+
+        try? wavWriter?.appendPCMData(mixed)
     }
 }
 
@@ -293,11 +351,13 @@ extension AudioCaptureEngine: SCStreamOutput {
 
         let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
         guard let int16Data = outputBuffer.int16ChannelData else { return }
-        let data = Data(bytes: int16Data[0], count: byteCount)
+        let systemAudioData = Data(bytes: int16Data[0], count: byteCount)
 
-        // Write via async to keep consistent with mic path
-        writeQueue.async { [weak self] in
-            try? self?.wavWriter?.appendPCMData(data)
+        if isDualCapture {
+            // Mix system audio with mic buffer, then write
+            mixAndWrite(systemAudio: systemAudioData)
+        } else {
+            try? wavWriter?.appendPCMData(systemAudioData)
         }
     }
 }
