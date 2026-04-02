@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-build script: Inserts Screen Recording TCC permission for EchoLog
+# Post-build script: Inserts TCC permissions for EchoLog
 # Uses the signing identity requirement (survives rebuilds) instead of CDHash
 
 BUNDLE_ID="com.felixbeckert.EchoLog"
@@ -21,10 +21,13 @@ if [ ! -f "$CSREQ_BIN" ]; then
 fi
 
 CSREQ_HEX=$(xxd -p "$CSREQ_BIN" | tr -d '\n')
+TIMESTAMP=$(date +%s)
 
-# Insert or replace Screen Recording permission
-sqlite3 "$TCC_DB" \
-    "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified, pid, pid_version, boot_uuid, last_reminded) VALUES ('kTCCServiceScreenCapture', '$BUNDLE_ID', 0, 2, 3, 1, X'$CSREQ_HEX', NULL, 0, 'UNUSED', NULL, 0, $(date +%s), 0, 0, 'UNUSED', 0);" 2>/dev/null
+# Insert or replace permissions: Screen Recording + Accessibility
+for SERVICE in kTCCServiceScreenCapture kTCCServiceAccessibility; do
+    sqlite3 "$TCC_DB" \
+        "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified, pid, pid_version, boot_uuid, last_reminded) VALUES ('$SERVICE', '$BUNDLE_ID', 0, 2, 3, 1, X'$CSREQ_HEX', NULL, 0, 'UNUSED', NULL, 0, $TIMESTAMP, 0, 0, 'UNUSED', 0);" 2>/dev/null
+done
 
 rm -f "$CSREQ_BIN"
-echo "Screen Recording permission updated for $BUNDLE_ID"
+echo "TCC permissions updated for $BUNDLE_ID (ScreenCapture + Accessibility)"
