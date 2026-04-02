@@ -75,6 +75,9 @@ struct SessionHistoryView: View {
         .onAppear {
             sessionManager.loadSessions()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            sessionManager.loadSessions()
+        }
     }
 
     private func deleteSession(_ session: Session) {
@@ -251,6 +254,9 @@ struct SessionDetailView: View {
         }
         .onAppear { loadContent() }
         .onChange(of: session.id) { _, _ in loadContent() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            loadContent()
+        }
     }
 
     private var formattedDuration: String {
